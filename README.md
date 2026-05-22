@@ -99,13 +99,13 @@ These steps run inside Claude Code, and they're the same across platforms.
 
 1. **Open Claude Code.** In Terminal, type `claude` and press **Return**. The first launch opens your browser to sign in – use your paid Claude account.
 
-2. **Add the plugin catalog.** At Claude Code's prompt, type:
+2. **Add the plugin source.** At Claude Code's prompt, type:
    ```
    /plugin marketplace add Automattic/agentic-analytics
    ```
-   Press Return. Claude Code downloads the catalog (this takes a few seconds). Claude Code may ask you to confirm you trust this source. The catalog is published by Automattic, the company building this plugin, so you can answer yes.
+   Press Return. Claude Code fetches the catalog (takes a few seconds) and may ask you to confirm you trust this source – it's published by Automattic, so answer yes.
 
-3. **Install the plugin itself:**
+3. **Install the plugin:**
    ```
    /plugin install agentic-analytics@automattic-agentic-analytics
    ```
@@ -116,7 +116,9 @@ These steps run inside Claude Code, and they're the same across platforms.
    /reload-plugins
    ```
 
-**How you'll know it worked:** Claude Code shows a confirmation, and you can use the new commands `/agentic-analytics:init` and `/agentic-analytics:staircase`.
+**How you'll know it worked:** Claude Code shows a confirmation, and the new commands `/agentic-analytics:init` and `/agentic-analytics:staircase` are available. Type `/help` to confirm they're listed.
+
+The plugin updates automatically – when Automattic publishes a new version, Claude Code picks it up at the next launch.
 
 ---
 

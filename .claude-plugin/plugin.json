@@ -1,6 +1,6 @@
 {
   "name": "agentic-analytics",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "Audience-relationship analytics from Parse.ly DPL data",
   "author": {
     "name": "Automattic"

@@ -1,0 +1,14 @@
+{
+  "name": "automattic-agentic-analytics",
+  "owner": {
+    "name": "Automattic"
+  },
+  "description": "Automattic's Agentic Analytics plugin for Claude Code",
+  "plugins": [
+    {
+      "name": "agentic-analytics",
+      "source": "./",
+      "description": "Audience-relationship analytics from Parse.ly DPL data"
+    }
+  ]
+}
