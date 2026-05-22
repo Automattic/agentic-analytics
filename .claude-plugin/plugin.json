@@ -1,0 +1,22 @@
+{
+  "name": "agentic-analytics",
+  "version": "0.9.0",
+  "description": "Audience-relationship analytics from Parse.ly DPL data",
+  "author": {
+    "name": "Automattic"
+  },
+  "license": "MIT",
+  "skills": [
+    "./skills/getting-started",
+    "./skills/staircase-report",
+    "./skills/identify-employees",
+    "./skills/refresh-cache"
+  ],
+  "commands": [
+    "./commands/init.md",
+    "./commands/staircase.md",
+    "./commands/clear-configs.md",
+    "./commands/identify-employees.md",
+    "./commands/refresh-cache.md"
+  ]
+}
