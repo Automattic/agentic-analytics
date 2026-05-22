@@ -108,7 +108,7 @@ Welcoming, not robust. The user is a Parse.ly customer, so don't explain Parse.l
 
    Otherwise, output verbatim and wait for a reply:
 
-   > Optional: do your email campaigns embed a per-recipient identifier in URLs (e.g. `?pid=...`)? If so, what's the parameter name? Type the name (e.g. `pid`) or "skip" if you don't have this set up yet – you can configure it later by re-running this command.
+   > Optional: do your email campaigns embed a per-recipient identifier in URLs (e.g. `?pid=...`)? If so, what's the parameter name? Type the name (e.g. `pid`) or "skip" if you don't have this set up yet – you can configure it later by re-running `/agentic-analytics:init`.
 
    Treat any reply of `skip`, `no`, `none`, or empty as "no key configured" and continue without setting one. Otherwise record the reply as the `join_id_key` value. Don't validate further (the report harmlessly emits empty values until matching `?<key>=...` URLs land in cached events).
 
@@ -137,8 +137,6 @@ Welcoming, not robust. The user is a Parse.ly customer, so don't explain Parse.l
    > - `/agentic-analytics:staircase <site>` filters to one site (e.g. `your-site.com`).
    >
    > Or just ask in chat: "Run the staircase report."
-   >
-   > **Identify employee traffic** – `/agentic-analytics:identify-employees` checks whether your tracker tags employees via `extra_data` (e.g., `extra_data['Internal'] = true`). If so, saves the filter so reports exclude that traffic. Works on cached events, so run it after your first staircase report has populated the cache.
 
 10. **Suggest a first thing to try.** Output verbatim:
 

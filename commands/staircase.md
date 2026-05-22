@@ -20,8 +20,9 @@ You are a pipe, not an analyst. The customer reads the report directly.
    - `bucket`: S3 bucket holding the customer's DPL events.
    - `profile`: AWS profile to authenticate with.
    - `cache_dir`: subdirectory under `${XDG_CACHE_HOME:-~/.cache}/agentic-analytics/dpl/` for the events cache (e.g. `acme`).
-   - `employee_filter` (optional): `{ "extra_data_key": "...", "extra_data_value": ... }`. Written by `/agentic-analytics:identify-employees` when an unambiguous employee-traffic tag was detected. If present, pass it through to `staircase.py` (step 3); the report excludes those events and renders a one-line note up top.
-   - `join_id_key` (optional): the URL query parameter the customer carries in email-campaign links to identify each recipient (e.g. `"pid"`). When set, cohort CSVs gain a column with that name, populated from the query string of any pageview where the parameter appears. The customer joins the cohort back to their CRM list on that column. If present, pass it through to `staircase.py` (step 3) as `--join-id-key <value>`.
+   - `employee_filter` (optional): `{ "extra_data_key": "...", "extra_data_value": ... }`. Written by the auto-detection in step 3 (or a manual `/agentic-analytics:identify-employees` run) when an unambiguous employee-traffic tag was found. If present, pass it through to `staircase.py` (step 4); the report excludes those events and renders a one-line note up top.
+   - `employee_filter_checked` (optional): boolean flag set after employee-traffic detection has run at least once against a populated cache. Step 3 below uses this to decide whether to run a first-time auto-detect.
+   - `join_id_key` (optional): the URL query parameter the customer carries in email-campaign links to identify each recipient (e.g. `"pid"`). When set, cohort CSVs gain a column with that name, populated from the query string of any pageview where the parameter appears. The customer joins the cohort back to their CRM list on that column. If present, pass it through to `staircase.py` (step 4) as `--join-id-key <value>`.
 
    If the file is missing, tell the user to run `/agentic-analytics:init` first and stop.
 
@@ -90,7 +91,20 @@ You are a pipe, not an analyst. The customer reads the report directly.
    fi
    ```
 
-3. **Run the report.** Slug the output filename from `cache_dir` plus the site ID filter (or `all` when none):
+3. **Auto-detect employee traffic on first populated cache (silent).** If `employee_filter_checked` is absent from `bucket.json`, run the detection script in quiet mode now that the cache pull has had a chance to populate `$cache_dir`. The script writes `employee_filter_checked: true` after scanning so this only runs once, and writes `employee_filter` only if it finds an unambiguous match. On match, the report's own one-line note (rendered by `staircase.py` when `--employee-filter-*` is passed) is what surfaces the result – this step adds no chat output of its own.
+
+   ```bash
+   if ! python3 -c "import json,sys; sys.exit(0 if json.load(open('${XDG_CONFIG_HOME:-$HOME/.config}/agentic-analytics/bucket.json')).get('employee_filter_checked') else 1)" 2>/dev/null; then
+     python3 "${CLAUDE_PLUGIN_ROOT:-plugin}/skills/identify-employees/scripts/detect_employee_filter.py" \
+       --bucket-config "${XDG_CONFIG_HOME:-$HOME/.config}/agentic-analytics/bucket.json" \
+       --cache-dir "$cache_dir" \
+       --quiet || true
+   fi
+   ```
+
+   The `|| true` is intentional: detection failures (empty cache, transient I/O) should never block the report. Re-read `bucket.json` after this step so any newly-written `employee_filter` is available for step 4.
+
+4. **Run the report.** Slug the output filename from `cache_dir` plus the site ID filter (or `all` when none):
 
    ```bash
    slug="<cache_dir>$([ -n "<site-id>" ] && echo "-<site-id>" || echo "-all")"
@@ -118,9 +132,9 @@ You are a pipe, not an analyst. The customer reads the report directly.
 
    Pass `--site-id` only when `$ARGUMENTS` is non-empty. Pass `--data-coverage-note` only when `$note` is non-empty (i.e. windows are short). Pass `--employee-filter-*` only when `employee_filter` is present in `bucket.json`. Pass `--join-id-key` only when `join_id_key` is present in `bucket.json` (this flag is plumbing between the slash command and the script; customers don't type it).
 
-4. **Output the report**: read `/tmp/staircase-$slug.md` and emit its contents verbatim. Don't add formatting, don't add framing.
+5. **Output the report**: read `/tmp/staircase-$slug.md` and emit its contents verbatim. Don't add formatting, don't add framing.
 
-5. **Append the HTML link** as the last line, with one blank line separating it from the report body:
+6. **Append the HTML link** as the last line, with one blank line separating it from the report body:
 
    ```
    [Open the HTML version in browser](file:///tmp/staircase-$slug.html)

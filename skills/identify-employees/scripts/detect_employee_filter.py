@@ -165,6 +165,16 @@ def write_filter_to_bucket_config(bucket_config_path: str, filt: Dict[str, Any])
         "detected_share_pct": filt["detected_share_pct"],
         "sample_event_count": filt["sample_event_count"],
     }
+    config["employee_filter_checked"] = True
+    with open(bucket_config_path, "w", encoding="utf-8") as fh:
+        json.dump(config, fh, indent=2)
+        fh.write("\n")
+
+
+def mark_filter_checked(bucket_config_path: str) -> None:
+    with open(bucket_config_path, "r", encoding="utf-8") as fh:
+        config = json.load(fh)
+    config["employee_filter_checked"] = True
     with open(bucket_config_path, "w", encoding="utf-8") as fh:
         json.dump(config, fh, indent=2)
         fh.write("\n")
@@ -173,9 +183,11 @@ def write_filter_to_bucket_config(bucket_config_path: str, filt: Dict[str, Any])
 def clear_filter_from_bucket_config(bucket_config_path: str) -> bool:
     with open(bucket_config_path, "r", encoding="utf-8") as fh:
         config = json.load(fh)
-    if "employee_filter" not in config:
+    had_filter = "employee_filter" in config or "employee_filter_checked" in config
+    config.pop("employee_filter", None)
+    config.pop("employee_filter_checked", None)
+    if not had_filter:
         return False
-    del config["employee_filter"]
     with open(bucket_config_path, "w", encoding="utf-8") as fh:
         json.dump(config, fh, indent=2)
         fh.write("\n")
@@ -191,7 +203,11 @@ def main(argv=None) -> int:
     p.add_argument("--max-files", type=int, default=200,
                    help="Maximum number of .gz files to scan, most-recent-first. Default 200.")
     p.add_argument("--clear", action="store_true",
-                   help="Remove any existing employee_filter from bucket.json and exit without scanning.")
+                   help="Remove any existing employee_filter (and the employee_filter_checked flag) "
+                        "from bucket.json and exit without scanning.")
+    p.add_argument("--quiet", action="store_true",
+                   help="Suppress all stdout. Used by /agentic-analytics:staircase to run detection "
+                        "silently the first time the cache is populated.")
     args = p.parse_args(argv)
 
     if not os.path.isfile(args.bucket_config):
@@ -201,10 +217,11 @@ def main(argv=None) -> int:
 
     if args.clear:
         cleared = clear_filter_from_bucket_config(args.bucket_config)
-        if cleared:
-            print("Cleared employee_filter from bucket.json.")
-        else:
-            print("No employee_filter was set; nothing to clear.")
+        if not args.quiet:
+            if cleared:
+                print("Cleared employee_filter from bucket.json.")
+            else:
+                print("No employee_filter was set; nothing to clear.")
         return 0
 
     if not args.cache_dir:
@@ -212,33 +229,40 @@ def main(argv=None) -> int:
         return 1
 
     if not os.path.isdir(args.cache_dir):
-        print(f"Cache directory not found: {args.cache_dir}. "
-              f"Run /agentic-analytics:staircase or /agentic-analytics:refresh-cache "
-              f"to populate it first.", file=sys.stderr)
+        # No cache yet – don't mark as checked; staircase will retry on a later run.
+        if not args.quiet:
+            print(f"Cache directory not found: {args.cache_dir}. "
+                  f"Run /agentic-analytics:staircase or /agentic-analytics:refresh-cache "
+                  f"to populate it first.", file=sys.stderr)
         return 1
 
     counts, total = collect_extra_data_stats(args.cache_dir, max_files=args.max_files)
     if total == 0:
-        print(f"No pageview events found in {args.cache_dir}. "
-              f"Run /agentic-analytics:staircase or /agentic-analytics:refresh-cache first.",
-              file=sys.stderr)
+        # No events in cache yet – don't mark as checked.
+        if not args.quiet:
+            print(f"No pageview events found in {args.cache_dir}. "
+                  f"Run /agentic-analytics:staircase or /agentic-analytics:refresh-cache first.",
+                  file=sys.stderr)
         return 0
 
     filt = detect_filter(counts, total)
     if filt is None:
-        print(f"No unambiguous employee-traffic tag detected in {total:,} sampled pageviews. "
-              f"No filter applied.")
+        mark_filter_checked(args.bucket_config)
+        if not args.quiet:
+            print(f"No unambiguous employee-traffic tag detected in {total:,} sampled pageviews. "
+                  f"No filter applied.")
         return 0
 
     write_filter_to_bucket_config(args.bucket_config, filt)
-    key_repr = filt["extra_data_key"]
-    val_repr = json.dumps(filt["extra_data_value"])
-    print(
-        f"Detected employee traffic tagged with extra_data['{key_repr}'] = {val_repr} "
-        f"({filt['detected_share_pct']:.1f}% of {total:,} sampled pageviews). "
-        f"Will filter this out of audience reports so it doesn't skew your results. "
-        f"Tell me if this is incorrect."
-    )
+    if not args.quiet:
+        key_repr = filt["extra_data_key"]
+        val_repr = json.dumps(filt["extra_data_value"])
+        print(
+            f"Detected employee traffic tagged with extra_data['{key_repr}'] = {val_repr} "
+            f"({filt['detected_share_pct']:.1f}% of {total:,} sampled pageviews). "
+            f"Will filter this out of audience reports so it doesn't skew your results. "
+            f"Tell me if this is incorrect."
+        )
     return 0
 
 

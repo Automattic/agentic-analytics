@@ -33,7 +33,22 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from typing import Iterable, List, Optional
+
+
+# Pulls of this size or larger get an up-front "this will take a while" warning.
+# Small catch-ups (1-6 days) stay quiet so daily runs don't get spammy.
+SLOW_PULL_WARN_THRESHOLD = 7
+
+
+def format_duration(seconds: float) -> str:
+    """Human-readable elapsed time. e.g. 4.2s, 1m12s, 4m07s."""
+    if seconds < 60:
+        return f"{seconds:.1f}s"
+    m = int(seconds // 60)
+    s = int(seconds - m * 60)
+    return f"{m}m{s:02d}s"
 
 
 def default_cache_root() -> str:
@@ -164,25 +179,56 @@ def main(argv: Optional[List[str]] = None) -> int:
         print("Nothing to pull.", file=sys.stderr)
         return 0
 
+    total = len(missing)
+    if total >= SLOW_PULL_WARN_THRESHOLD and not args.dry_run:
+        print("", file=sys.stderr)
+        print(
+            f"  Fetching {total} day(s) of events from S3. "
+            f"A fresh 60-day pull typically takes 3-10 minutes",
+            file=sys.stderr,
+        )
+        print(
+            "  depending on bandwidth and bucket size. Per-day progress prints "
+            "below; don't interrupt.",
+            file=sys.stderr,
+        )
+        print("", file=sys.stderr)
+
     failures: List[dt.date] = []
-    for d in missing:
+    overall_start = time.monotonic()
+    for i, d in enumerate(missing, start=1):
         dst = day_dir(args.cache_root, args.cache_dir, d)
         os.makedirs(dst, exist_ok=True)
         src = s3_source(bucket, prefix, d)
-        print(f"Pulling {d} -> {dst}", file=sys.stderr)
+        print(f"[{i}/{total}] Pulling {d} -> {dst}", file=sys.stderr)
+        day_start = time.monotonic()
         rc = aws_sync(src, dst, profile, args.dry_run)
+        day_elapsed = time.monotonic() - day_start
         if rc != 0:
             failures.append(d)
-            print(f"  ! aws s3 sync exited {rc} for {d}", file=sys.stderr)
+            print(
+                f"[{i}/{total}] ! aws s3 sync exited {rc} for {d} "
+                f"(after {format_duration(day_elapsed)})",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                f"[{i}/{total}] done in {format_duration(day_elapsed)}",
+                file=sys.stderr,
+            )
 
+    total_elapsed = time.monotonic() - overall_start
     if failures:
         print(
-            f"Done with {len(failures)} failure(s): "
+            f"Done with {len(failures)} failure(s) in {format_duration(total_elapsed)}: "
             f"{', '.join(str(d) for d in failures)}",
             file=sys.stderr,
         )
         return 1
-    print("Done.", file=sys.stderr)
+    print(
+        f"Pulled {total} day(s) in {format_duration(total_elapsed)}.",
+        file=sys.stderr,
+    )
     return 0
 
 
